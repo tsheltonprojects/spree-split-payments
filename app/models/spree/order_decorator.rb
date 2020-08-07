@@ -82,8 +82,11 @@ Spree::Order.class_eval do
     if has_checkout_step?("payment") && self.payment?
       @updating_params[:order][:payments_attributes] ||= {}
       insert_source_params
-      if @updating_params[:order][:payments_attributes]['0']
-        @updating_params[:order][:payments_attributes]['0'][:amount] = order_total_after_partial_payments
+      @updating_params[:order][:payments_attributes].each do |payment_idx, payment_attribs|
+        payment_method = Spree::PaymentMethod.find( payment_attribs["payment_method_id"] )
+        if payment_method.name == "Credit Card"
+          @updating_params[:order][:payments_attributes][payment_idx][:amount] = order_total_after_partial_payments
+        end
       end
     end
   end
@@ -102,8 +105,12 @@ Spree::Order.class_eval do
 
   def order_total_after_partial_payments
     amount = 0
-    @updating_params[:order][:payments_attributes].values.each do |payment_attrs|
-      amount += payment_attrs[:amount].to_f
+
+    @updating_params[:order][:payments_attributes].each do |payment_idx, payment_attribs|
+      payment_method = Spree::PaymentMethod.find( payment_attribs["payment_method_id"] )
+      if payment_method.name != "Credit Card"
+        amount += payment_attribs[:amount].to_f
+      end
     end
     outstanding_balance - amount
   end
